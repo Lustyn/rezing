@@ -29,9 +29,4 @@ class Program
     {
         new Server().Start();
     }
-
-    static void Test(string[] args)
-    {
-
-    }
 }
