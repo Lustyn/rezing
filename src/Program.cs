@@ -6,7 +6,7 @@ class Program
     public static void Main(string[] args)
     {
         // Load Assembly-CSharp.dll
-        var assemblyStream = File.OpenRead("Libraries/Assembly-CSharp.dll");
+        var assemblyStream = File.OpenRead("libs/Assembly-CSharp.dll");
 
         // Patch Assembly-CSharp.dll
         var patchedStream = AssemblyPatcher.PatchAssembly(assemblyStream);
@@ -28,5 +28,10 @@ class Program
     static void RealMain(string[] args)
     {
         new Server().Start();
+    }
+
+    static void Test(string[] args)
+    {
+
     }
 }

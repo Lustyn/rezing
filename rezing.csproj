@@ -3,15 +3,20 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net35</TargetFramework>
+    <EnableDefaultItems>False</EnableDefaultItems>
   </PropertyGroup>
 
   <ItemGroup>
-    <Reference Include="Libraries/Assembly-CSharp.dll">
+    <Reference Include="libs/Assembly-CSharp.dll">
       <Private>False</Private>
     </Reference>
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Mono.Cecil" Version="0.9.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="src/**/*$(DefaultLanguageSourceExtension)" Exclude="$(DefaultItemExcludes);$(DefaultExcludesInProjectFolder)" />
   </ItemGroup>
 </Project>

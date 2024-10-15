@@ -31,7 +31,9 @@ public static class AssemblyPatcher
 
             foreach (var call in calls)
             {
-                method.Body.Instructions.Remove(call);
+                var index = method.Body.Instructions.IndexOf(call);
+                method.Body.Instructions.RemoveAt(index);
+                method.Body.Instructions.Insert(index, Instruction.Create(OpCodes.Pop));
             }
 
             // Remove call to BIManager.Instance.SendExceptionGoogleAnalytics
@@ -53,7 +55,7 @@ public static class AssemblyPatcher
         stream.Position = 0;
 
         // Write to file for manual inspection
-        assembly.Write("Libraries/Assembly-CSharp-Patched.dll");
+        assembly.Write("libs/Assembly-CSharp-Patched.dll");
 
         return stream;
     }
