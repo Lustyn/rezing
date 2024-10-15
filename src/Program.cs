@@ -25,8 +25,24 @@ class Program
         RealMain(args);
     }
 
+    static GameServer server;
+
     static void RealMain(string[] args)
     {
-        new Server().Start();
+        server = new GameServer();
+
+        Console.CancelKeyPress += (sender, eventArgs) => {
+            eventArgs.Cancel = true;
+            Shutdown();
+        };
+
+        server.Start();
+        Console.WriteLine("Server started");
+    }
+
+    static void Shutdown()
+    {
+        server.Stop();
+        Console.WriteLine("Server stopped");
     }
 }

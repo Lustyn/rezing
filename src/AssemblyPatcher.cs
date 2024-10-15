@@ -15,18 +15,26 @@ public static class AssemblyPatcher
         var gsfCommsObject = module.GetType("GSFCommsObject");
 
         // Noop Log and LogWarning
-        gsfCommsObject.Methods.Where(m => m.Name == "Log").First().NopVoid();
-        gsfCommsObject.Methods.Where(m => m.Name == "LogWarning").First().NopVoid();
+        gsfCommsObject.Methods.Where(m => m.Name == "Log")
+            .First()
+            .NopVoid();
+        gsfCommsObject.Methods
+            .Where(m => m.Name == "LogWarning")
+            .First()
+            .NopVoid();
 
         // Passthrough LogErrors
-        var logError = gsfCommsObject.Methods.Where(m => m.Name == "LogError").ToList();
+        var logError = gsfCommsObject.Methods
+            .Where(m => m.Name == "LogError")
+            .ToList();
         foreach (var method in logError)
         {
             // Remove call to UnityEngine Debug.LogError
-            var calls = method.Body.Instructions.Where(
-                i => i.OpCode == OpCodes.Call
-                && i.Operand is MethodReference
-                && (i.Operand as MethodReference).Name == "LogError")
+            var calls = method.Body.Instructions
+                .Where(i =>
+                    i.OpCode == OpCodes.Call
+                    && (i.Operand as MethodReference)?.Name == "LogError"
+                )
                 .ToList();
 
             foreach (var call in calls)
@@ -37,8 +45,18 @@ public static class AssemblyPatcher
             }
 
             // Remove call to BIManager.Instance.SendExceptionGoogleAnalytics
-            var start = method.Body.Instructions.Where(i => i.OpCode == OpCodes.Call && i.Operand is MethodReference && (i.Operand as MethodReference).Name == "get_Instance").First();
-            var end = method.Body.Instructions.Where(i => i.OpCode == OpCodes.Callvirt && i.Operand is MethodReference && (i.Operand as MethodReference).Name == "SendExceptionGoogleAnalytics").First();
+            var start = method.Body.Instructions
+                .Where(i =>
+                    i.OpCode == OpCodes.Call
+                    && (i.Operand as MethodReference)?.Name == "get_Instance"
+                )
+                .First();
+            var end = method.Body.Instructions
+                .Where(i =>
+                    i.OpCode == OpCodes.Callvirt
+                    && (i.Operand as MethodReference)?.Name == "SendExceptionGoogleAnalytics"
+                )
+                .First();
 
             var startIndex = method.Body.Instructions.IndexOf(start);
             var endIndex = method.Body.Instructions.IndexOf(end);
@@ -48,6 +66,26 @@ public static class AssemblyPatcher
                 method.Body.Instructions.RemoveAt(startIndex);
             }
         }
+
+        var debuggerType = module.GetType("AWMessageFactory");
+
+        var buildMessage = debuggerType.Methods
+            .Where(m => m.Name == "BuildMessage")
+            .First();
+
+        // Remove call to Debugger.LogError
+
+        var debuggerCall = buildMessage.Body.Instructions
+            .Where(i =>
+                i.OpCode == OpCodes.Call
+                && (i.Operand as MethodReference)?.Name == "LogError"
+            )
+            .First();
+
+        var debuggerCallIndex = buildMessage.Body.Instructions.IndexOf(debuggerCall);
+
+        buildMessage.Body.Instructions.RemoveAt(debuggerCallIndex);
+        buildMessage.Body.Instructions.Insert(debuggerCallIndex, Instruction.Create(OpCodes.Pop));
 
         // Write assembly
         var stream = new MemoryStream();

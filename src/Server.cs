@@ -1,19 +1,62 @@
 using System;
+using System.Collections.Generic;
+using System.Net;
+using System.Net.Sockets;
+using System.Threading;
 
-class Server
+class GameServer
 {
-    public void Start()
+    private TcpListener listener;
+
+    private bool running;
+    private Thread connectionThread;
+
+    private List<ServerClient> clients = new List<ServerClient>();
+
+    public GameServer()
     {
-        new TestCommsObject().TestLog();
-        Console.WriteLine("Server started");
+        listener = new TcpListener(IPAddress.Loopback, 8080);
     }
 
-    class TestCommsObject : GSFCommsObject
+    private void HandleConnections()
     {
-        public void TestLog()
+        running = true;
+        while (running)
         {
-            Log("Test Log");
-            LogError("test");
+            HandleConnection();
         }
+    }
+
+    private void HandleConnection()
+    {
+        try
+        {
+            var client = listener.AcceptSocket();
+            Console.WriteLine("Client connected: " + client.RemoteEndPoint);
+
+            var serverClient = new ServerClient(client);
+            clients.Add(serverClient);
+        }
+        catch (SocketException ex)
+        {
+            if (ex.SocketErrorCode != SocketError.Interrupted)
+            {
+                Console.WriteLine("Socket error: " + ex.Message);
+
+            }
+            running = false;
+        }
+    }
+
+    public void Start()
+    {
+        listener.Start();
+        connectionThread = new Thread(HandleConnections);
+        connectionThread.Start();
+    }
+
+    public void Stop()
+    {
+        listener.Stop();
     }
 }

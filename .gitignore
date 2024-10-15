@@ -2,3 +2,6 @@ libs
 depots
 bin
 obj
+decomp
+game
+.DS_Store
