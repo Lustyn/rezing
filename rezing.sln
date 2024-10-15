@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.5.002.0
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "awpatcher", "awpatcher.csproj", "{FBC07C1E-9F55-4180-BA20-86BA729D9EF9}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "rezing", "rezing.csproj", "{FBC07C1E-9F55-4180-BA20-86BA729D9EF9}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
