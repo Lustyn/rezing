@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net.Sockets;
 using System.Threading;
@@ -9,11 +10,14 @@ class ServerClient
 
     private bool running;
     private Thread readThread;
+    private Thread writeThread;
 
     private MemoryStream readStream;
     private BinaryWriter writer;
 
     private GSFIProtocolCodec codec = new GSFBitProtocolCodec(new ServerMessageFactory());
+
+    private GSFBlockingQueue<GSFMessage> messageQueue = new GSFBlockingQueue<GSFMessage>();
 
     public ServerClient(Socket receivedSocket)
     {
@@ -28,6 +32,8 @@ class ServerClient
         running = true;
         readThread = new Thread(HandleReads);
         readThread.Start();
+        writeThread = new Thread(HandleWrites);
+        writeThread.Start();
     }
 
     private void HandleReads()
@@ -48,17 +54,24 @@ class ServerClient
         }
         catch (SocketException)
         {
-            Close();
+            running = false;
             return;
         }
 
-        if (readBytes <= 0)
+        if (readBytes > 0)
         {
-            Close();
+            writer.Write(buffer, 0, readBytes);
+        }
+        else
+        {
+            running = false;
             return;
         }
 
-        writer.Write(buffer, 0, readBytes);
+        if (readStream.Position == 0)
+        {
+            return;
+        }
 
         var reader = new BinaryReader(readStream);
         if (codec.CheckHasLength(reader, (int)readStream.Position))
@@ -91,12 +104,75 @@ class ServerClient
             var message = codec.ReadMessage(new BinaryReader(new MemoryStream(payload)));
 
             Console.WriteLine($"Received message: {message}");
+
+            if (message is GSFRequestMessage request)
+            {
+                if (request.Body is GSFGetClientVersionInfoSvc.GSFRequest body)
+                {
+                    Console.WriteLine($"Client connected: {body.clientName}");
+                    messageQueue.Enqueue(
+                        new ServerResponseMessage(
+                            ServiceClass.UserServer,
+                            GSFUserMessageTypes.GET_CLIENT_VERSION_INFO,
+                            new GSFGetClientVersionInfoSvc.GSFResponse {
+                                clientVersionInfo = "0.0.0"
+                            }
+                        )
+                    );
+                }
+            }
+            else
+            {
+                Console.WriteLine("Received message is not a request");
+            }
+        }
+    }
+
+    private void HandleWrites()
+    {
+        while (running)
+        {
+            HandleWrite();
+        }
+    }
+
+    private void HandleWrite()
+    {
+        var peek = messageQueue.Peek();
+        if (peek == null)
+        {
+            return;
+        }
+        var message = messageQueue.Dequeue();
+
+        var outStream = new MemoryStream();
+        var writer = new BinaryWriter(outStream);
+        codec.WriteMessage(message, writer);
+        var payload = outStream.ToArray();
+
+        var packetStream = new MemoryStream(8 + payload.Length + 1);
+        var packetWriter = new BinaryWriter(packetStream);
+        codec.WriteLength((uint)payload.Length + 1, packetWriter);
+        packetWriter.Write(payload);
+        packetWriter.Write((byte)0);
+
+        try
+        {
+            var output = packetStream.ToArray();
+            Console.WriteLine($"Sending message: {BitConverter.ToString(output).Replace("-", " ")}");
+
+            socket.Send(output);
+        }
+        catch (SocketException)
+        {
+            running = false;
         }
     }
 
     public void Close()
     {
         running = false;
+        messageQueue.NotifyAll();
         socket.Close();
     }
 }
