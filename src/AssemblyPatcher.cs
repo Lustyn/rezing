@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Mono.Cecil;
@@ -87,6 +88,26 @@ public static class AssemblyPatcher
         buildMessage.Body.Instructions.RemoveAt(debuggerCallIndex);
         buildMessage.Body.Instructions.Insert(debuggerCallIndex, Instruction.Create(OpCodes.Pop));
 
+        // Iterate over all types and find those that implement GSFClientService.GSFRequest
+        module.Types.Visit(type => {
+            if (type.Implements("GSFIExternalizable"))
+            {
+                var hasDefaultConstructor = type.Methods
+                    .Any(m => m.Name == ".ctor" && m.Parameters.Count == 0);
+
+                if (!hasDefaultConstructor)
+                {
+                    var defaultConstructor = new MethodDefinition(
+                        ".ctor",
+                        MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName | MethodAttributes.RTSpecialName,
+                        module.TypeSystem.Void
+                    );
+                    defaultConstructor.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
+                    type.Methods.Add(defaultConstructor);
+                }
+            }
+        });
+
         // Write assembly
         var stream = new MemoryStream();
         assembly.Write(stream);
@@ -106,5 +127,50 @@ public static class AssemblyPatcher
         }
         method.Body.Instructions.Clear();
         method.Body.Instructions.Add(Instruction.Create(OpCodes.Ret));
+    }
+
+    public static void Visit(this IEnumerable<TypeDefinition> types, Action<TypeDefinition> action)
+    {
+        foreach (var type in types)
+        {
+            action(type);
+            type.NestedTypes.Visit(action);
+        }
+    }
+
+    public static TypeDefinition LocalResolve(this TypeReference type)
+    {
+        if (type.Scope.Name == type.Module.Assembly.MainModule.Name) {
+            return type.Resolve();
+        } else {
+            // Skip types from other assemblies
+            return null;
+        }
+    }
+
+    public static void VisitBaseTypes(this TypeDefinition type, Action<TypeDefinition> action)
+    {
+        var baseType = type.BaseType?.LocalResolve();
+        if (baseType != null)
+        {
+            action(baseType);
+            baseType.VisitBaseTypes(action);
+        }
+    }
+
+    public static bool Implements(this TypeDefinition type, string interfaceName)
+    {
+        var implements = type.Interfaces.Any(i => i.FullName == interfaceName);
+        if (implements)
+        {
+            return true;
+        }
+        type.VisitBaseTypes(baseType => {
+            if (baseType.Interfaces.Any(i => i.FullName == interfaceName))
+            {
+                implements = true;
+            }
+        });
+        return implements;
     }
 }

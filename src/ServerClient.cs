@@ -52,6 +52,29 @@ class ServerClient
         {
             // TODO: Read length, then read message
             // Also probably need to trim the stream at some point
+            var writingPosition = readStream.Position;
+            readStream.Position = 0;
+            // WTF were they smoking, smuggling the "number of length bytes" instead of just relying on
+            // the reader to advance the stream position?
+            var payloadLength = codec.ReadLength(reader, (int)readStream.Length, out _);
+            var payload = reader.ReadBytes(payloadLength);
+            var endPosition = readStream.Position;
+
+            // Trim the stream by copying the remaining bytes to the start
+            var remainingBytes = writingPosition - endPosition;
+            if (remainingBytes > 0)
+            {
+                var remainingBuffer = reader.ReadBytes((int)remainingBytes);
+                readStream.Write(remainingBuffer, 0, remainingBuffer.Length);
+            }
+            readStream.Position = remainingBytes;
+
+            // Output hex payload to console
+            Console.WriteLine($"Received payload: {BitConverter.ToString(payload).Replace("-", " ")}");
+
+            var message = codec.ReadMessage(new BinaryReader(new MemoryStream(payload)));
+
+            Console.WriteLine($"Received message: {message}");
         }
     }
 
