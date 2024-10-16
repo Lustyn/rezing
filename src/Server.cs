@@ -58,5 +58,9 @@ class GameServer
     public void Stop()
     {
         listener.Stop();
+        foreach (var client in clients)
+        {
+            client.Close();
+        }
     }
 }

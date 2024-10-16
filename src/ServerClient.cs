@@ -41,22 +41,38 @@ class ServerClient
 
     public void HandleRead(byte[] buffer)
     {
-        var num = socket.Receive(buffer);
-        if (num > 0)
+        int readBytes;
+        try
         {
-            writer.Write(buffer, 0, num);
+            readBytes = socket.Receive(buffer);
+        }
+        catch (SocketException)
+        {
+            Close();
+            return;
         }
 
-        var reader = new BinaryReader(readStream);
-        if (codec.CheckHasLength(reader, (int)readStream.Length))
+        if (readBytes <= 0)
         {
-            // TODO: Read length, then read message
-            // Also probably need to trim the stream at some point
+            Close();
+            return;
+        }
+
+        writer.Write(buffer, 0, readBytes);
+
+        var reader = new BinaryReader(readStream);
+        if (codec.CheckHasLength(reader, (int)readStream.Position))
+        {
             var writingPosition = readStream.Position;
             readStream.Position = 0;
             // WTF were they smoking, smuggling the "number of length bytes" instead of just relying on
             // the reader to advance the stream position?
             var payloadLength = codec.ReadLength(reader, (int)readStream.Length, out _);
+            if (payloadLength > writingPosition)
+            {
+                readStream.Position = writingPosition;
+                return;
+            }
             var payload = reader.ReadBytes(payloadLength);
             var endPosition = readStream.Position;
 
@@ -80,6 +96,7 @@ class ServerClient
 
     public void Close()
     {
+        running = false;
         socket.Close();
     }
 }
