@@ -10,7 +10,7 @@ public class ServerResponseMessage : GSFMessage
 {
     private static int callCount = 0;
 
-    private readonly MessageHeader header;
+    private readonly new MessageHeader header;
     private readonly GSFService.GSFResponse body;
 
     public ServerResponseMessage(ServiceClass serviceClass, int messageType, GSFService.GSFResponse body)

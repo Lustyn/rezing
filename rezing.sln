@@ -5,6 +5,8 @@ VisualStudioVersion = 17.5.002.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "rezing", "rezing.csproj", "{FBC07C1E-9F55-4180-BA20-86BA729D9EF9}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Patcher", "Patcher\Patcher.csproj", "{47614977-53A5-47DC-BA31-D97322FC6034}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -15,6 +17,10 @@ Global
 		{FBC07C1E-9F55-4180-BA20-86BA729D9EF9}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{FBC07C1E-9F55-4180-BA20-86BA729D9EF9}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{FBC07C1E-9F55-4180-BA20-86BA729D9EF9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{47614977-53A5-47DC-BA31-D97322FC6034}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{47614977-53A5-47DC-BA31-D97322FC6034}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{47614977-53A5-47DC-BA31-D97322FC6034}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{47614977-53A5-47DC-BA31-D97322FC6034}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

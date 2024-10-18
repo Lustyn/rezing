@@ -2,14 +2,20 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net35</TargetFramework>
+    <TargetFramework>net452</TargetFramework>
     <EnableDefaultItems>False</EnableDefaultItems>
   </PropertyGroup>
 
+  <Target Name="PatchAssembly" BeforeTargets="PrepareForBuild">
+    <!-- Run patcher to generate the patched assembly dll -->
+    <Exec Command="dotnet run --project Patcher/Patcher.csproj" />
+  </Target>
+
   <ItemGroup>
-    <Reference Include="libs/Assembly-CSharp.dll">
+    <Reference Include="obj/Assembly-CSharp-Patched.dll">
       <Private>False</Private>
     </Reference>
+    <ProjectReference Include="Patcher/Patcher.csproj" />
   </ItemGroup>
 
   <ItemGroup>
