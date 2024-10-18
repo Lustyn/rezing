@@ -107,16 +107,23 @@ class ServerClient
 
             if (message is GSFRequestMessage request)
             {
-                if (request.Body is GSFGetClientVersionInfoSvc.GSFRequest body)
+                GSFService.GSFResponse response = null;
+                switch (request.Body)
                 {
-                    Console.WriteLine($"Client connected: {body.clientName}");
+                    case GSFGetClientVersionInfoSvc.GSFRequest body:
+                        response = new GSFGetClientVersionInfoHandler().Handle(body);
+                        break;
+                    case GSFValidateNameSvc.GSFRequest body:
+                        response = new GSFValidateNameHandler().Handle(body);
+                        break;
+                }
+                if (!(response is null))
+                {
                     messageQueue.Enqueue(
                         new ServerResponseMessage(
                             ServiceClass.UserServer,
-                            GSFUserMessageTypes.GET_CLIENT_VERSION_INFO,
-                            new GSFGetClientVersionInfoSvc.GSFResponse {
-                                clientVersionInfo = "0.0.0"
-                            }
+                            request.Header.msgType,
+                            response
                         )
                     );
                 }
