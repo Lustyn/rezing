@@ -75,6 +75,27 @@ public interface TreeNode
                     {
                         parent.Children.Add(new String { Name = name, Value = value[1..^1] });
                     }
+                    else if (value.Contains(' '))
+                    {
+                        var valueParts = value.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                        if (valueParts.Length == 0)
+                        {
+                            throw new Exception("Expected array, got nothing");
+                        }
+
+                        if (INT_REGEX.IsMatch(valueParts[0]))
+                        {
+                            parent.Children.Add(new IntArray { Name = name, Values = new List<int>(Array.ConvertAll(valueParts, int.Parse)) });
+                        }
+                        else if (FLOAT_REGEX.IsMatch(valueParts[0]))
+                        {
+                            parent.Children.Add(new FloatArray { Name = name, Values = new List<float>(Array.ConvertAll(valueParts, float.Parse)) });
+                        }
+                        else
+                        {
+                            throw new Exception("Unexpected value: " + value);
+                        }
+                    }
                     else
                     {
                         throw new Exception("Unexpected value: " + value);
