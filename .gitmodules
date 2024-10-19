@@ -1,0 +1,3 @@
+[submodule "CacheTool/UnityDataTools"]
+	path = CacheTool/UnityDataTools
+	url = git@github.com:Unity-Technologies/UnityDataTools.git

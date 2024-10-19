@@ -7,6 +7,10 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "rezing", "rezing.csproj", "
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Patcher", "Patcher\Patcher.csproj", "{47614977-53A5-47DC-BA31-D97322FC6034}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CacheTool", "CacheTool\CacheTool.csproj", "{7954CAE2-490F-43C0-966E-02471471FDDC}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UnitTests", "UnitTests\UnitTests.csproj", "{8E95CDB6-78F1-45B4-9903-FF8B8E61A51B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +25,14 @@ Global
 		{47614977-53A5-47DC-BA31-D97322FC6034}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{47614977-53A5-47DC-BA31-D97322FC6034}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{47614977-53A5-47DC-BA31-D97322FC6034}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7954CAE2-490F-43C0-966E-02471471FDDC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7954CAE2-490F-43C0-966E-02471471FDDC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7954CAE2-490F-43C0-966E-02471471FDDC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7954CAE2-490F-43C0-966E-02471471FDDC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8E95CDB6-78F1-45B4-9903-FF8B8E61A51B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8E95CDB6-78F1-45B4-9903-FF8B8E61A51B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8E95CDB6-78F1-45B4-9903-FF8B8E61A51B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8E95CDB6-78F1-45B4-9903-FF8B8E61A51B}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
