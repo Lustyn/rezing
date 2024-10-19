@@ -118,6 +118,18 @@ partial class Program
             return null;
         }
 
+        using var streamReader = new StreamReader(file, Encoding.UTF8, leaveOpen: true);
+        var content = streamReader.ReadToEnd();
+
+        try
+        {
+            TreeNode.Read(content);
+        }
+        catch (CorruptException)
+        {
+            return "Corrupt";
+        }
+
         return fileType;
     }
 }

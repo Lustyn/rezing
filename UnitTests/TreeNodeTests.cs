@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace UnitTests;
 
 [TestClass]
@@ -13,15 +15,26 @@ public class TreeNodeTests
             {
                 ItWorks = ""Maybe?""
                 Yes = 1
-                ItDoes = 1.0
+                ItDoes = 1.0 // Random comment
                 Hopefully = 1.0 2.0 3.0
                 CanIt = 1 2 3
             }
+            What = 23
+            {
+                Is = ""this""
+            }
+            Ok = ""Cool""
+            {
+            }
+            // A comment
+            /* A multi-line comment */
+            /* A multi-line
+            comment */
         }
         ");
 
         Assert.AreEqual("Root", root.Name);
-        Assert.AreEqual(1, root.Children.Count);
+        Assert.AreEqual(3, root.Children.Count);
         Assert.AreEqual("Test", root.Children[0].Name);
         Assert.IsInstanceOfType<TreeNode.Object>(root.Children[0]);
         var test = (TreeNode.Object)root.Children[0];
@@ -51,5 +64,18 @@ public class TreeNodeTests
         Assert.AreEqual(1, canIt.Values[0]);
         Assert.AreEqual(2, canIt.Values[1]);
         Assert.AreEqual(3, canIt.Values[2]);
+        Assert.AreEqual("What", root.Children[1].Name);
+        Assert.IsInstanceOfType<TreeNode.IntKeyedObject>(root.Children[1]);
+        var what = (TreeNode.IntKeyedObject)root.Children[1];
+        Assert.AreEqual(23, what.Key);
+        Assert.AreEqual("Is", what.Children[0].Name);
+        Assert.IsInstanceOfType<TreeNode.String>(what.Children[0]);
+        var isThis = (TreeNode.String)what.Children[0];
+        Assert.AreEqual("this", isThis.Value);
+        Assert.AreEqual("Ok", root.Children[2].Name);
+        Assert.IsInstanceOfType<TreeNode.StringKeyedObject>(root.Children[2]);
+        var ok = (TreeNode.StringKeyedObject)root.Children[2];
+        Assert.AreEqual("Cool", ok.Key);
+        Assert.AreEqual(0, ok.Children.Count);
     }
 }
