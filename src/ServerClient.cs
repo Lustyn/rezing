@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Net.Sockets;
 using System.Threading;
@@ -18,6 +17,7 @@ class ServerClient
     private GSFIProtocolCodec codec = new GSFBitProtocolCodec(new ServerMessageFactory());
 
     private GSFBlockingQueue<GSFMessage> messageQueue = new GSFBlockingQueue<GSFMessage>();
+    private GSFRequestHandler requestHandler = new GSFRequestHandler();
 
     public ServerClient(Socket receivedSocket)
     {
@@ -107,16 +107,7 @@ class ServerClient
 
             if (message is GSFRequestMessage request)
             {
-                GSFService.GSFResponse response = null;
-                switch (request.Body)
-                {
-                    case GSFGetClientVersionInfoSvc.GSFRequest body:
-                        response = new GSFGetClientVersionInfoHandler().Handle(body);
-                        break;
-                    case GSFValidateNameSvc.GSFRequest body:
-                        response = new GSFValidateNameHandler().Handle(body);
-                        break;
-                }
+                var response = requestHandler.Handle(request.Body);
                 if (!(response is null))
                 {
                     messageQueue.Enqueue(
