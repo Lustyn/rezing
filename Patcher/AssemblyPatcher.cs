@@ -160,13 +160,13 @@ public static class AssemblyPatcher
 
     public static bool Implements(this TypeDefinition type, string interfaceName)
     {
-        var implements = type.Interfaces.Any(i => i.FullName == interfaceName);
+        var implements = type.Interfaces.Any(i => i.InterfaceType.FullName == interfaceName);
         if (implements)
         {
             return true;
         }
         type.VisitBaseTypes(baseType => {
-            if (baseType.Interfaces.Any(i => i.FullName == interfaceName))
+            if (baseType.Interfaces.Any(i => i.InterfaceType.FullName == interfaceName))
             {
                 implements = true;
             }
