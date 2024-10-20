@@ -8,8 +8,6 @@ using System.Threading;
 /// </summary>
 public class ServerResponseMessage : GSFMessage
 {
-    private static int callCount = 0;
-
     private new MessageHeader header;
     private GSFService.GSFResponse body;
     private Type bodyType;
@@ -20,9 +18,9 @@ public class ServerResponseMessage : GSFMessage
         this.bodyType = bodyType;
     }
 
-    public ServerResponseMessage(ServiceClass serviceClass, int messageType, GSFService.GSFResponse body)
+    public ServerResponseMessage(int requestId, ServiceClass serviceClass, int messageType, GSFService.GSFResponse body)
     {
-        this.header = new MessageHeader(Interlocked.Increment(ref callCount));
+        this.header = new MessageHeader(requestId);
         header.svcClass = (int)serviceClass;
         header.msgType = messageType;
         this.body = body;

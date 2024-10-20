@@ -113,6 +113,7 @@ class ServerClient
                 {
                     messageQueue.Enqueue(
                         new ServerResponseMessage(
+                            request.Header.requestId,
                             ServiceClass.UserServer,
                             request.Header.msgType,
                             response
