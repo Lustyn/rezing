@@ -2,17 +2,35 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
-using System.Text.Json;
-using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
+using UnityDataTools.FileSystem;
+using UnityDataTools.TextDumper;
 
 partial class Program
 {
+    private static TextDumperTool textDumperTool = new();
+
     public static void Main(string[] args)
     {
-        foreach (var path in args)
+        try
         {
-            AnalyzeCacheFile(path);
+            UnityFileSystem.Init();
+            // Create temp directory for extracted files
+            Directory.CreateDirectory("temp");
+            foreach (var path in args)
+            {
+                AnalyzeCacheFile(path);
+            }
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+        }
+        finally
+        {
+            UnityFileSystem.Cleanup();
+            // We will likely want to manually inspect files right now, so we will not delete the temp directory
+            // Directory.Delete("temp", recursive: true);
         }
     }
 
@@ -28,13 +46,14 @@ partial class Program
     {
         var treeNodeType = GetTreeNodeType(file);
         var jsonType = GetJsonType(file);
+        var bundleType = GetBundleType(file);
         if (file.Length == 0)
         {
             return "Empty";
         }
-        else if (IsAssetBundle(file))
+        else if (bundleType != BundleType.None)
         {
-            return "AssetBundle";
+            return bundleType.ToString();
         }
         else if (jsonType != null)
         {
@@ -54,17 +73,65 @@ partial class Program
         }
     }
 
-    public static bool IsAssetBundle(FileStream file)
+    public enum BundleType
     {
+        AssetBundle,
+        WebBundle,
+        None,
+    }
+
+    public static BundleType GetBundleType(FileStream file)
+    {
+        if (file.Length < 7)
+        {
+            return BundleType.None;
+        }
         using var reader = new BinaryReader(file, Encoding.UTF8, leaveOpen: true);
 
         var magic = reader.ReadBytes(7);
+       file.Position = 0;
         var fileType = Encoding.UTF8.GetString(magic);
 
-        file.Position = 0;
+        if (fileType != "UnityFS" && fileType != "UnityWe")
+        {
+            return BundleType.None;
+        }
 
-        return fileType == "UnityFS"
-        || fileType == "UnityWe"; // UnityWeb
+        // Create directory at temp/$filename
+        var outputFolder = Path.Combine("temp", Path.GetFileName(file.Name));
+        Directory.CreateDirectory(outputFolder);
+        using var files = UnityFileSystem.MountArchive(file.Name, "/");
+        foreach (var f in files.Nodes)
+        {
+            if (!f.Flags.HasFlag(ArchiveNodeFlags.SerializedFile))
+            {
+                Console.WriteLine($"Extracting {outputFolder}/{f.Path}");
+                using var sourceFile = UnityFileSystem.OpenFile("/" + f.Path);
+                using var destFile = File.OpenWrite(Path.Combine(outputFolder, f.Path));
+                const int blockSize = 256 * 1024;
+                var buffer = new byte[blockSize];
+                long actualSize;
+
+                do
+                {
+                    actualSize = sourceFile.Read(blockSize, buffer);
+                    destFile.Write(buffer, 0, (int)actualSize);
+                }
+                while (actualSize == blockSize);
+            }
+            else
+            {
+                Console.WriteLine($"Dumping {outputFolder}/{f.Path}");
+                var status = textDumperTool.Dump("/" + f.Path, outputFolder, false);
+                if (status != 0)
+                {
+                    Console.WriteLine($"Error dumping {f.Path}");
+                    return BundleType.None;
+                }
+            }
+        }
+
+        return BundleType.AssetBundle;
     }
 
     public static string GetJsonType(FileStream file)

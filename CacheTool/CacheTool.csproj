@@ -6,6 +6,7 @@
 
     <ItemGroup>
         <ProjectReference Include="UnityDataTools/UnityFileSystem/UnityFileSystem.csproj" />
+        <ProjectReference Include="UnityDataTools/TextDumper/TextDumper.csproj" />
     </ItemGroup>
 
     <ItemGroup>
