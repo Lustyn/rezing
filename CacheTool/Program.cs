@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -121,15 +122,83 @@ partial class Program
         using var streamReader = new StreamReader(file, Encoding.UTF8, leaveOpen: true);
         var content = streamReader.ReadToEnd();
 
+        TreeNode.Object treeNode;
         try
         {
-            TreeNode.Read(content);
+            treeNode = TreeNode.Read(content);
         }
         catch (CorruptException)
         {
             return "Corrupt";
         }
 
-        return fileType;
+        if (knownTypes.Contains(treeNode.Name))
+        {
+            return treeNode.Name;
+        }
+        else if (treeNode.Children.Count > 0
+            && treeNode.Children[0] is TreeNode.Object obj
+            && knownRootTypes.Contains(obj.Name)
+        )
+        {
+            return obj.Name;
+        }
+        else if (treeNode.Children.Exists(
+            child => child is TreeNode.Int intNode
+            && intNode.Name == "TimeoutLength"
+        ))
+        {
+            return "GameConfig";
+        }
+        else if (treeNode.Children.Exists(
+            child => child is TreeNode.String stringNode
+            && captionNameRegex.IsMatch(stringNode.Name)
+        ))
+        {
+            return "Caption";
+        }
+        else if (treeNode.Children.Count > 0
+            && treeNode.Children[0] is TreeNode.Object objNode
+            && objNode.Children.Exists(
+                child => child is TreeNode.String stringNode
+                && stringNode.Name == "onMouseClick"
+            )
+        )
+        {
+            return "ButtonSoundMapping";
+        }
+
+
+        Console.WriteLine(fileType);
+
+        return null;
     }
+
+    private static HashSet<string> knownTypes = new()
+    {
+        "Quest",
+        "NPCRelationships",
+        "Item",
+        "DressAvatarSlots",
+        "NPCAnimations",
+        "Mission",
+        "BuildingCompletion",
+        "Property",
+        "BuildingUI",
+        "SpawnPoints",
+        "Areas",
+        "AvatarProperty",
+        "NPCs",
+    };
+
+    private static HashSet<string> knownRootTypes = new()
+    {
+        "UI",
+        "Localization",
+        "Tooltip",
+        "Nix",
+        "Emotes",
+    };
+
+    private static Regex captionNameRegex = new(@"^C(\w+)\d+$");
 }
