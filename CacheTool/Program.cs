@@ -89,6 +89,11 @@ partial class Program
         var content = streamReader.ReadToEnd();
         file.Position = 0;
 
+        // In the future we should use a parser to determine the type,
+        // however it seems that a lot of the JSON is straight up invalid
+        // and actually half TreeNodes, so it will require adding in the
+        // JSON fallback behavior to our implementation.
+
         if (content.Contains("\"Months\""))
         {
             return "WalletStoreItem";
