@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Net.Sockets;
 using System.Threading;
+using Newtonsoft.Json;
 
 class ServerClient
 {
@@ -14,7 +15,8 @@ class ServerClient
     private MemoryStream readStream;
     private BinaryWriter writer;
 
-    private GSFIProtocolCodec codec = new GSFBitProtocolCodec(new ServerMessageFactory());
+    private GSFIProtocolCodec serverCodec = new GSFBitProtocolCodec(new ServerMessageFactory());
+    private GSFIProtocolCodec clientCodec = new GSFBitProtocolCodec(new ClientMessageFactory());
 
     private GSFBlockingQueue<GSFMessage> messageQueue = new GSFBlockingQueue<GSFMessage>();
     private GSFRequestHandler requestHandler = new GSFRequestHandler();
@@ -74,13 +76,13 @@ class ServerClient
         }
 
         var reader = new BinaryReader(readStream);
-        if (codec.CheckHasLength(reader, (int)readStream.Position))
+        if (serverCodec.CheckHasLength(reader, (int)readStream.Position))
         {
             var writingPosition = readStream.Position;
             readStream.Position = 0;
             // WTF were they smoking, smuggling the "number of length bytes" instead of just relying on
             // the reader to advance the stream position?
-            var payloadLength = codec.ReadLength(reader, (int)readStream.Length, out _);
+            var payloadLength = serverCodec.ReadLength(reader, (int)readStream.Length, out _);
             if (payloadLength > writingPosition)
             {
                 readStream.Position = writingPosition;
@@ -101,12 +103,11 @@ class ServerClient
             // Output hex payload to console
             Console.WriteLine($"Received payload: {BitConverter.ToString(payload).Replace("-", " ")}");
 
-            var message = codec.ReadMessage(new BinaryReader(new MemoryStream(payload)));
-
-            Console.WriteLine($"Received message: {message}");
+            var message = serverCodec.ReadMessage(new BinaryReader(new MemoryStream(payload)));
 
             if (message is GSFRequestMessage request)
             {
+                Console.WriteLine($"Received request: {request.Body} {JsonConvert.SerializeObject(request.Body)}");
                 var response = requestHandler.Handle(request.Body);
                 if (!(response is null))
                 {
@@ -121,7 +122,7 @@ class ServerClient
             }
             else
             {
-                Console.WriteLine("Received message is not a request");
+                Console.WriteLine($"Received message is not a request {message} {JsonConvert.SerializeObject(message)}");
             }
         }
     }
@@ -145,12 +146,24 @@ class ServerClient
 
         var outStream = new MemoryStream();
         var writer = new BinaryWriter(outStream);
-        codec.WriteMessage(message, writer);
+        serverCodec.WriteMessage(message, writer);
         var payload = outStream.ToArray();
+
+        // Validate the payload can be deserialized
+        try
+        {
+            var reader = new BinaryReader(new MemoryStream(payload));
+            var deserializedMessage = clientCodec.ReadMessage(reader);
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine($"Failed to validate outgoing message: {e}");
+            return;
+        }
 
         var packetStream = new MemoryStream(8 + payload.Length + 1);
         var packetWriter = new BinaryWriter(packetStream);
-        codec.WriteLength((uint)payload.Length + 1, packetWriter);
+        serverCodec.WriteLength((uint)payload.Length + 1, packetWriter);
         packetWriter.Write(payload);
         packetWriter.Write((byte)0);
 
