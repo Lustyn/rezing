@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 
 partial class Program
@@ -25,6 +27,7 @@ partial class Program
     public static string GetFileType(FileStream file)
     {
         var treeNodeType = GetTreeNodeType(file);
+        var jsonType = GetJsonType(file);
         if (file.Length == 0)
         {
             return "Empty";
@@ -33,9 +36,9 @@ partial class Program
         {
             return "AssetBundle";
         }
-        else if (IsJson(file))
+        else if (jsonType != null)
         {
-            return "JSON";
+            return $"JSON ({jsonType})";
         }
         else if (IsPng(file))
         {
@@ -64,15 +67,46 @@ partial class Program
         || fileType == "UnityWe"; // UnityWeb
     }
 
-    public static bool IsJson(FileStream file)
+    public static string GetJsonType(FileStream file)
     {
+        if (file.Length < 2)
+        {
+            return null;
+        }
         using var reader = new BinaryReader(file, Encoding.UTF8, leaveOpen: true);
 
+        Console.WriteLine(file.Name);
         var character = reader.ReadChar();
 
         file.Position = 0;
 
-        return character == '{';
+        if (character != '{')
+        {
+            return null;
+        }
+
+        using var streamReader = new StreamReader(file, Encoding.UTF8, leaveOpen: true);
+        var content = streamReader.ReadToEnd();
+        file.Position = 0;
+
+        if (content.Contains("\"Months\""))
+        {
+            return "WalletStoreItem";
+        }
+        else if (content.Contains("\"Collection_Name\""))
+        {
+            return "ShopProductItem";
+        }
+        else if (content.Contains("\"ScreenOffset\""))
+        {
+            return "NpcDetails";
+        }
+        else if (content.Contains("\"Name\""))
+        {
+            return "ItemDetails";
+        }
+
+        return "Unknown";
     }
 
     public static bool IsPng(FileStream file)
@@ -121,6 +155,7 @@ partial class Program
 
         using var streamReader = new StreamReader(file, Encoding.UTF8, leaveOpen: true);
         var content = streamReader.ReadToEnd();
+        file.Position = 0;
 
         TreeNode.Object treeNode;
         try
