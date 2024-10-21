@@ -1,11 +1,12 @@
 using System;
-using System.Buffers.Text;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using UnityDataTools.FileSystem;
+using UnityDataTools.FileSystem.TypeTreeReaders;
 using UnityDataTools.TextDumper;
 
 partial class Program
@@ -31,6 +32,7 @@ partial class Program
                 catch (Exception e)
                 {
                     Console.WriteLine($"Error analyzing {path}: {e}");
+                    break;
                 }
             }
             program.SaveCacheItems();
@@ -120,15 +122,10 @@ partial class Program
     {
         var treeNodeType = GetTreeNodeType(file);
         var jsonType = GetJsonType(file);
-        var bundleType = GetBundleType(file);
+        UpdateBundleType(cacheItem, file);
         if (file.Length == 0)
         {
             cacheItem.FileType = "Empty";
-            cacheItem.Type = null;
-        }
-        else if (bundleType != BundleType.None)
-        {
-            cacheItem.FileType = bundleType.ToString();
             cacheItem.Type = null;
         }
         else if (jsonType != null)
@@ -151,7 +148,7 @@ partial class Program
             cacheItem.FileType = "Audio";
             cacheItem.Type = null;
         }
-        else
+        else if (cacheItem.FileType == null)
         {
             cacheItem.FileType = "Unknown";
             cacheItem.Type = null;
@@ -165,27 +162,76 @@ partial class Program
         None,
     }
 
-    public BundleType GetBundleType(FileStream file)
+    public void UpdateBundleType(CacheItem item, FileStream file)
     {
         if (file.Length < 7)
         {
-            return BundleType.None;
+            return;
         }
         using var reader = new BinaryReader(file, Encoding.UTF8, leaveOpen: true);
 
         var magic = reader.ReadBytes(7);
-       file.Position = 0;
+        file.Position = 0;
         var fileType = Encoding.UTF8.GetString(magic);
 
         if (fileType != "UnityFS" && fileType != "UnityWe")
         {
-            return BundleType.None;
+            return;
         }
 
+        item.FileType = "AssetBundle";
+
+        using var files = UnityFileSystem.MountArchive(file.Name, "/");
+        try
+        {
+            if (files == null || files.Nodes == null)
+            {
+                item.Type = "Corrupt";
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            item.Type = "Corrupt";
+            return;
+        }
+
+        var containedFiles = new HashSet<string>(item.ContainedFiles ?? []);
+
+        foreach (var f in files.Nodes)
+        {
+            if (f.Flags.HasFlag(ArchiveNodeFlags.SerializedFile))
+            {
+                item.FileType = "AssetBundle";
+                item.Name = f.Path;
+
+                using var sourceFile = UnityFileSystem.OpenSerializedFile("/" + f.Path);
+                using var fileReader = new UnityFileReader("/" + f.Path, 64 * 1024 * 1024);
+                foreach (var obj in sourceFile.Objects)
+                {
+                    var root = sourceFile.GetTypeTreeRoot(obj.Id);
+                    if (obj.TypeId == 142)
+                    {
+                        var randomAccessReader = new RandomAccessReader(sourceFile, root, fileReader, obj.Offset);
+                        var container = randomAccessReader["m_Container"];
+
+                        foreach (var asset in container)
+                        {
+                            var assetName = asset["first"].GetValue<string>();
+
+                            containedFiles.Add(assetName);
+                        }
+                    }
+                }
+            }
+        }
+
+        item.ContainedFiles = containedFiles.ToArray();
+
         // Create directory at temp/$filename
+        // using var files = UnityFileSystem.MountArchive(file.Name, "/");
         // var outputFolder = Path.Combine("temp", Path.GetFileName(file.Name));
         // Directory.CreateDirectory(outputFolder);
-        // using var files = UnityFileSystem.MountArchive(file.Name, "/");
         // foreach (var f in files.Nodes)
         // {
         //     if (!f.Flags.HasFlag(ArchiveNodeFlags.SerializedFile))
@@ -210,12 +256,9 @@ partial class Program
         //         if (status != 0)
         //         {
         //             Console.WriteLine($"Error dumping {f.Path}");
-        //             return BundleType.None;
         //         }
         //     }
         // }
-
-        return BundleType.AssetBundle;
     }
 
     public string GetJsonType(FileStream file)
