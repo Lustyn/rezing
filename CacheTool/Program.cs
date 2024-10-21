@@ -259,6 +259,8 @@ partial class Program
         //         }
         //     }
         // }
+
+        file.Position = 0;
     }
 
     public string GetJsonType(FileStream file)
