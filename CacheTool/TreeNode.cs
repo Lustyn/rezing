@@ -15,6 +15,7 @@ public interface TreeNode
         var stack = new Stack<Object>();
         string nextObjectName = null;
         bool inComment = false;
+        Object lastStackItem = null;
         for (var i = 0; i < lines.Length; i++)
         {
             var line = lines[i];
@@ -44,12 +45,16 @@ public interface TreeNode
 
             if (line == "{")
             {
-                if (nextObjectName == null)
+                // Recover from a corrupt file
+                if (nextObjectName == null && lastStackItem != null)
                 {
-                    throw new CorruptException("Expected object name, got {");
+                    stack.Push(lastStackItem);
                 }
-                stack.Push(new Object { Name = nextObjectName, Children = new List<TreeNode>() });
-                nextObjectName = null;
+                else
+                {
+                    stack.Push(new Object { Name = nextObjectName, Children = new List<TreeNode>() });
+                    nextObjectName = null;
+                }
             }
             else if (line == "}")
             {
@@ -62,6 +67,7 @@ public interface TreeNode
                 var parent = stack.Peek();
 
                 parent.Children.Add(item);
+                lastStackItem = item;
             }
             else
             {
@@ -76,14 +82,22 @@ public interface TreeNode
                 }
                 else
                 {
-                    var parent = stack.Peek();
+                    var hasParent = stack.TryPeek(out var parent);
                     var name = parts[0];
                     var value = parts[1];
                     var valueParts = value.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
                     if (value == "true" || value == "false")
                     {
-                        parent.Children.Add(new Bool { Name = name, Value = value == "true" });
+                        if (nextLine == "{")
+                        {
+                            stack.Push(new BoolKeyedObject { Name = name, Key = bool.Parse(value), Children = new List<TreeNode>() });
+                            i++;
+                        }
+                        else
+                        {
+                            parent.Children.Add(new Bool { Name = name, Value = value == "true" });
+                        }
                     }
                     else if (INT_REGEX.IsMatch(value))
                     {
@@ -133,7 +147,14 @@ public interface TreeNode
             }
         }
 
-        throw new Exception("Expected object, got end of file");
+        while (stack.Count > 1)
+        {
+            var item = stack.Pop();
+            var parent = stack.Peek();
+            parent.Children.Add(item);
+        }
+
+        return stack.Pop();
     }
 
     private static float ParseFloat(string value)
@@ -167,6 +188,11 @@ public interface TreeNode
     class IntKeyedObject : Object, Key<int>
     {
         public int Key { get; set; }
+    }
+
+    class BoolKeyedObject : Object, Key<bool>
+    {
+        public bool Key { get; set; }
     }
 
     interface Value<T> : TreeNode
@@ -219,21 +245,5 @@ public interface TreeNode
     {
         public string Name { get; set; }
         public List<int> Values { get; set; }
-    }
-}
-
-[Serializable]
-internal class CorruptException : Exception
-{
-    public CorruptException()
-    {
-    }
-
-    public CorruptException(string message) : base(message)
-    {
-    }
-
-    public CorruptException(string message, Exception innerException) : base(message, innerException)
-    {
     }
 }

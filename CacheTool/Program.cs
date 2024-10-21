@@ -1,26 +1,39 @@
 using System;
+using System.Buffers.Text;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using UnityDataTools.FileSystem;
 using UnityDataTools.TextDumper;
 
 partial class Program
 {
-    private static TextDumperTool textDumperTool = new();
+    private TextDumperTool textDumperTool = new();
 
     public static void Main(string[] args)
     {
+        Console.WriteLine("rezing CacheTool");
         try
         {
             UnityFileSystem.Init();
             // Create temp directory for extracted files
             Directory.CreateDirectory("temp");
+            var program = new Program();
+            program.LoadCacheItems();
             foreach (var path in args)
             {
-                AnalyzeCacheFile(path);
+                try
+                {
+                    program.AnalyzeCacheFile(path);
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine($"Error analyzing {path}: {e}");
+                }
             }
+            program.SaveCacheItems();
         }
         catch (Exception e)
         {
@@ -34,42 +47,114 @@ partial class Program
         }
     }
 
-    public static void AnalyzeCacheFile(string path)
-    {
-        using var file = File.OpenRead(path);
-        var fileType = GetFileType(file);
+    private Dictionary<string, CacheItem> cacheItems = new();
 
-        Console.WriteLine($"{path}: {fileType}");
+    public void LoadCacheItems()
+    {
+        if (!Directory.Exists("data"))
+        {
+            Directory.CreateDirectory("data");
+        }
+
+        // Load cache items from data/cache.json
+        if (File.Exists("data/cache.json"))
+        {
+            var cacheJson = File.ReadAllText("data/cache.json");
+            cacheItems = JsonSerializer.Deserialize<Dictionary<string, CacheItem>>(cacheJson);
+            Console.WriteLine($"Loaded {cacheItems.Count} existing cache items");
+        }
     }
 
-    public static string GetFileType(FileStream file)
+    public void SaveCacheItems()
+    {
+        var cacheJson = JsonSerializer.Serialize(cacheItems, new JsonSerializerOptions
+        {
+            WriteIndented = true,
+        });
+        File.WriteAllText("data/cache.json", cacheJson);
+        Console.WriteLine($"Saved {cacheItems.Count} cache items");
+    }
+
+    public static string PadBase64(string base64)
+    {
+        return base64.PadRight(base64.Length / 4 * 4 + (base64.Length % 4 == 0 ? 0 : 4), '=');
+    }
+
+    public static bool IsBase64String(string base64)
+    {
+        Span<byte> buffer = new Span<byte>(new byte[base64.Length]);
+        return Convert.TryFromBase64String(
+            PadBase64(base64),
+            buffer,
+            out _
+        );
+    }
+
+    public void AnalyzeCacheFile(string path)
+    {
+        var fileName = Path.GetFileName(path).Trim();
+        // Skip if filename is not a base64 encoded OID
+        if (!IsBase64String(fileName))
+        {
+            Console.WriteLine($"Skipping {fileName}");
+            return;
+        }
+        var oid = Encoding.UTF8.GetString(Convert.FromBase64String(PadBase64(fileName)));
+
+        using var file = File.OpenRead(path);
+        var cacheItem = cacheItems.GetValueOrDefault(fileName);
+        UpdateCacheItem(cacheItem, file);
+
+        if (!cacheItems.ContainsKey(fileName))
+        {
+            cacheItems[fileName] = cacheItem;
+            Console.WriteLine($"New cache item: {fileName} ({cacheItem.FileType})");
+        }
+        else if (cacheItems[fileName] != cacheItem)
+        {
+            Console.WriteLine($"Updated cache item: {fileName} ({cacheItem.FileType})");
+        }
+    }
+
+    public void UpdateCacheItem(CacheItem cacheItem, FileStream file)
     {
         var treeNodeType = GetTreeNodeType(file);
         var jsonType = GetJsonType(file);
         var bundleType = GetBundleType(file);
         if (file.Length == 0)
         {
-            return "Empty";
+            cacheItem.FileType = "Empty";
+            cacheItem.Type = null;
         }
         else if (bundleType != BundleType.None)
         {
-            return bundleType.ToString();
+            cacheItem.FileType = bundleType.ToString();
+            cacheItem.Type = null;
         }
         else if (jsonType != null)
         {
-            return $"JSON ({jsonType})";
+            cacheItem.FileType = "JSON";
+            cacheItem.Type = jsonType;
         }
         else if (IsPng(file))
         {
-            return "PNG";
+            cacheItem.FileType = "PNG";
+            cacheItem.Type = null;
         }
         else if (treeNodeType != null)
         {
-            return $"TreeNode ({treeNodeType})";
+            cacheItem.FileType = "TreeNode";
+            cacheItem.Type = treeNodeType;
+        }
+        else if (IsAudioFile(file))
+        {
+            cacheItem.FileType = "Audio";
+            cacheItem.Type = null;
         }
         else
         {
-            return "Unknown";
+            cacheItem.FileType = "Unknown";
+            cacheItem.Type = null;
         }
     }
 
@@ -80,7 +165,7 @@ partial class Program
         None,
     }
 
-    public static BundleType GetBundleType(FileStream file)
+    public BundleType GetBundleType(FileStream file)
     {
         if (file.Length < 7)
         {
@@ -98,43 +183,42 @@ partial class Program
         }
 
         // Create directory at temp/$filename
-        var outputFolder = Path.Combine("temp", Path.GetFileName(file.Name));
-        Directory.CreateDirectory(outputFolder);
-        using var files = UnityFileSystem.MountArchive(file.Name, "/");
-        foreach (var f in files.Nodes)
-        {
-            if (!f.Flags.HasFlag(ArchiveNodeFlags.SerializedFile))
-            {
-                Console.WriteLine($"Extracting {outputFolder}/{f.Path}");
-                using var sourceFile = UnityFileSystem.OpenFile("/" + f.Path);
-                using var destFile = File.OpenWrite(Path.Combine(outputFolder, f.Path));
-                const int blockSize = 256 * 1024;
-                var buffer = new byte[blockSize];
-                long actualSize;
-
-                do
-                {
-                    actualSize = sourceFile.Read(blockSize, buffer);
-                    destFile.Write(buffer, 0, (int)actualSize);
-                }
-                while (actualSize == blockSize);
-            }
-            else
-            {
-                Console.WriteLine($"Dumping {outputFolder}/{f.Path}");
-                var status = textDumperTool.Dump("/" + f.Path, outputFolder, false);
-                if (status != 0)
-                {
-                    Console.WriteLine($"Error dumping {f.Path}");
-                    return BundleType.None;
-                }
-            }
-        }
+        // var outputFolder = Path.Combine("temp", Path.GetFileName(file.Name));
+        // Directory.CreateDirectory(outputFolder);
+        // using var files = UnityFileSystem.MountArchive(file.Name, "/");
+        // foreach (var f in files.Nodes)
+        // {
+        //     if (!f.Flags.HasFlag(ArchiveNodeFlags.SerializedFile))
+        //     {
+        //         Console.WriteLine($"Extracting {outputFolder}/{f.Path}");
+        //         using var sourceFile = UnityFileSystem.OpenFile("/" + f.Path);
+        //         using var destFile = File.OpenWrite(Path.Combine(outputFolder, f.Path));
+        //         const int blockSize = 256 * 1024;
+        //         var buffer = new byte[blockSize];
+        //         long actualSize;
+        //         do
+        //         {
+        //             actualSize = sourceFile.Read(blockSize, buffer);
+        //             destFile.Write(buffer, 0, (int)actualSize);
+        //         }
+        //         while (actualSize == blockSize);
+        //     }
+        //     else
+        //     {
+        //         Console.WriteLine($"Dumping {outputFolder}/{f.Path}");
+        //         var status = textDumperTool.Dump("/" + f.Path, outputFolder, false);
+        //         if (status != 0)
+        //         {
+        //             Console.WriteLine($"Error dumping {f.Path}");
+        //             return BundleType.None;
+        //         }
+        //     }
+        // }
 
         return BundleType.AssetBundle;
     }
 
-    public static string GetJsonType(FileStream file)
+    public string GetJsonType(FileStream file)
     {
         if (file.Length < 2)
         {
@@ -142,7 +226,6 @@ partial class Program
         }
         using var reader = new BinaryReader(file, Encoding.UTF8, leaveOpen: true);
 
-        Console.WriteLine(file.Name);
         var character = reader.ReadChar();
 
         file.Position = 0;
@@ -161,7 +244,7 @@ partial class Program
         // and actually half TreeNodes, so it will require adding in the
         // JSON fallback behavior to our implementation.
 
-        if (content.Contains("\"Months\""))
+        if (content.Contains("\"Months\"") || content.Contains("\"Bullet1\""))
         {
             return "WalletStoreItem";
         }
@@ -181,7 +264,7 @@ partial class Program
         return "Unknown";
     }
 
-    public static bool IsPng(FileStream file)
+    public bool IsPng(FileStream file)
     {
         using var reader = new BinaryReader(file, Encoding.UTF8, leaveOpen: true);
 
@@ -195,9 +278,42 @@ partial class Program
             && magic[3] == 0x47;
     }
 
-    private static Regex treeNodeRegex = new(@"^\w+$", RegexOptions.Singleline);
+    private static HashSet<string> knownTypes = new()
+    {
+        "Quest",
+        "NPCRelationships",
+        "Item",
+        "DressAvatarSlots",
+        "NPCAnimations",
+        "Mission",
+        "BuildingCompletion",
+        "Property",
+        "BuildingUI",
+        "SpawnPoints",
+        "Areas",
+        "AvatarProperty",
+        "NPCs",
+        "UIWidget",
+        "cQuest",
+        "Game",
+        "Fish",
+        "Announcement",
+        "LevelUp",
+    };
 
-    public static string GetTreeNodeType(FileStream file)
+    private static HashSet<string> knownRootTypes = new()
+    {
+        "UI",
+        "Localization",
+        "Tooltip",
+        "Nix",
+        "Emotes",
+    };
+
+    private static Regex captionNameRegex = new(@"^C(\w+)\d+$");
+    private static Regex treeNodeRegex = new(@"^\w+(?:\s=\s.+)?$", RegexOptions.Singleline);
+
+    public string GetTreeNodeType(FileStream file)
     {
         if (file.Length < 10)
         {
@@ -217,8 +333,9 @@ partial class Program
             return null;
         }
 
-        var headerString = Encoding.UTF8.GetString(header, offset, 32 - offset);
-        var fileType = headerString.Split("\r\n")[0].Trim();
+        var headerString = Encoding.UTF8.GetString(header, offset, 32 - offset).Trim();
+        var lineEnding = headerString.Contains("\r\n") ? "\r\n" : "\n";
+        var fileType = headerString.Split(lineEnding)[0].Trim();
 
         if (!treeNodeRegex.IsMatch(fileType))
         {
@@ -229,15 +346,7 @@ partial class Program
         var content = streamReader.ReadToEnd();
         file.Position = 0;
 
-        TreeNode.Object treeNode;
-        try
-        {
-            treeNode = TreeNode.Read(content);
-        }
-        catch (CorruptException)
-        {
-            return "Corrupt";
-        }
+        var treeNode = TreeNode.Read(content);
 
         if (knownTypes.Contains(treeNode.Name))
         {
@@ -274,38 +383,31 @@ partial class Program
         {
             return "ButtonSoundMapping";
         }
-
-
-        Console.WriteLine(fileType);
+        else if (treeNode.Children.Count > 0
+            && treeNode.Name == "Root"
+            && treeNode.Children.Exists(
+                child => child is TreeNode.StringKeyedObject stringNode
+                && stringNode.Name == "Script"
+            )
+        )
+        {
+            return "RewardSequence";
+        }
 
         return null;
     }
 
-    private static HashSet<string> knownTypes = new()
+    private bool IsAudioFile(FileStream file)
     {
-        "Quest",
-        "NPCRelationships",
-        "Item",
-        "DressAvatarSlots",
-        "NPCAnimations",
-        "Mission",
-        "BuildingCompletion",
-        "Property",
-        "BuildingUI",
-        "SpawnPoints",
-        "Areas",
-        "AvatarProperty",
-        "NPCs",
-    };
+        using var reader = new BinaryReader(file, Encoding.UTF8, leaveOpen: true);
 
-    private static HashSet<string> knownRootTypes = new()
-    {
-        "UI",
-        "Localization",
-        "Tooltip",
-        "Nix",
-        "Emotes",
-    };
+        var magic = reader.ReadBytes(4);
 
-    private static Regex captionNameRegex = new(@"^C(\w+)\d+$");
+        file.Position = 0;
+
+        return magic[0] == 0x4F
+            && magic[1] == 0x67
+            && magic[2] == 0x67
+            && magic[3] == 0x53;
+    }
 }
