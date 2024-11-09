@@ -104,7 +104,7 @@ partial class Program
         var oid = Encoding.UTF8.GetString(Convert.FromBase64String(PadBase64(fileName)));
 
         using var file = File.OpenRead(path);
-        var cacheItem = cacheItems.GetValueOrDefault(fileName);
+        var cacheItem = cacheItems.GetValueOrDefault(fileName, new CacheItem());
         UpdateCacheItem(cacheItem, file);
 
         if (!cacheItems.ContainsKey(fileName))
